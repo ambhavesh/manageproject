@@ -1,0 +1,20 @@
+{
+    "welcomeFile": "zprojectmanagement/webapp/index.html",
+    "authenticationMethod": "route",
+    "logout": {
+        "logoutEndpoint": "/do/logout"
+    },
+    "routes": [
+        {
+            "source": "^/zprojectmanagement/webapp/(.*)",
+            "target": "$1",
+            "localDir": "zprojectmanagement/webapp/",
+            "csrfProtection": false
+        },
+        {
+            "source": "^/(.*)$",
+            "target": "$1",
+            "destination": "srv-api"
+        }
+    ]
+}

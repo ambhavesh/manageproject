@@ -1,0 +1,144 @@
+_schema-version: "3.1"
+ID: manageproject
+description: A simple CAP project.
+version: 1.0.0
+modules:
+  - name: manageproject-srv
+    type: nodejs
+    path: gen/srv
+    requires:
+      - name: manageproject-db
+      - name: uaa_manageproject
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    parameters:
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: npm
+  - name: manageproject-db-deployer
+    type: hdb
+    path: gen/db
+    requires:
+      - name: manageproject-db
+    parameters:
+      buildpack: nodejs_buildpack
+  - name: manageproject-destination-content
+    type: com.sap.application.content
+    requires:
+      - name: manageproject-destination-service
+        parameters:
+          content-target: true
+      - name: manageproject_html_repo_host
+        parameters:
+          service-key:
+            name: manageproject_html_repo_host-key
+      - name: uaa_manageproject
+        parameters:
+          service-key:
+            name: uaa_manageproject-key
+    parameters:
+      content:
+        instance:
+          destinations:
+            - Name: mpar_manageproject_html_repo_host
+              ServiceInstanceName: manageproject-html5-app-host-service
+              ServiceKeyName: manageproject_html_repo_host-key
+              sap.cloud.service: mpar
+            - Authentication: OAuth2UserTokenExchange
+              Name: mpar_uaa_manageproject
+              ServiceInstanceName: manageproject-xsuaa-service
+              ServiceKeyName: uaa_manageproject-key
+              sap.cloud.service: mpar
+          existing_destinations_policy: ignore
+    build-parameters:
+      no-source: true
+  - name: manageproject-app-content
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: manageproject_html_repo_host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      requires:
+        - artifacts:
+            - zprojectmanagement.zip
+          name: zprojectmanagement
+          target-path: resources/
+  - name: zprojectmanagement
+    type: html5
+    path: app/zprojectmanagement
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms: []
+  ## APP ROUTER ##
+  - name: manageproject
+    type: approuter.nodejs
+    path: app
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 1024M
+      memory: 1024M
+    requires:
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api # must be used in xs-app.json as well
+          url: ~{srv-url}
+          forwardAuthToken: true
+      - name: uaa_manageproject
+resources:
+  - name: manageproject-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: manageproject-destination-service
+    type: org.cloudfoundry.managed-service
+    parameters:
+      config:
+        HTML5Runtime_enabled: true
+        init_data:
+          instance:
+            destinations:
+              - Authentication: NoAuthentication
+                Name: ui5
+                ProxyType: Internet
+                Type: HTTP
+                URL: https://ui5.sap.com
+            existing_destinations_policy: update
+        version: 1.0.0
+      service: destination
+      service-name: manageproject-destination-service
+      service-plan: lite
+  - name: manageproject_html_repo_host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-name: manageproject-html5-app-host-service
+      service-plan: app-host
+  - name: uaa_manageproject
+    type: org.cloudfoundry.managed-service
+    parameters:
+      path: ./xs-security.json
+      service: xsuaa
+      service-name: manageproject-xsuaa-service
+      service-plan: application
+      config:
+        xsappname: manageproject-${org}-${space}
+        tenant-mode: dedicated
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npx cds build --production
