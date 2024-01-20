@@ -10,9 +10,4 @@ service MANAGEPROJECTSRV @(path: '/srv-api') {
     entity CompanySet  as projection on schema.m.Company;
     entity EmployeeSet as projection on schema.t.Employee;
     entity ModuleSet   as projection on schema.t.Module;
-
-    @open
-    type object {};
-
-    function fetchEmployee(companyId : Integer) returns object;
 }
